@@ -35,4 +35,4 @@ Der Quellcode dieses Skripts sowie Teile dieser Dokumentation wurden in Zusammen
 
 ## **Lizenz**
 
-Dieses Projekt ist Open Source. Es kann frei verwendet, modifiziert und weitergegeben werden.
+Dieses Projekt ist Open Source und steht unter der [MIT-Lizenz](https://opensource.org/license/mit). Es kann frei verwendet, modifiziert und weitergegeben werden.
