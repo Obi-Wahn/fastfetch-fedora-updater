@@ -22,10 +22,10 @@ Dieses Repository stellt ein automatisiertes Bash-Skript zur Verfügung, um das 
    cd fastfetch-fedora-updater
 
 2. Das Skript ausführbar machen:  
-   chmod \+x update-fastfetch.sh
+   chmod \+x update_fastfetch.sh
 
 3. Das Skript starten:  
-   ./update-fastfetch.sh
+   ./update_fastfetch.sh
 
    *Hinweis: Wenn ein Update verfügbar ist, wird für den Installationsprozess das sudo-Passwort abgefragt.*
 
