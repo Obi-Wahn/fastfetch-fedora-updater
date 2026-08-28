@@ -10,20 +10,34 @@ command -v python3 >/dev/null 2>&1 || { echo "❌ Fehler: python3 ist nicht inst
 
 echo "🔍 Ermittle aktuellste Versionsnummer für Fastfetch..."
 
-# Zuverlässige JSON-Abfrage über Python (verhindert Fehler wie das Auslesen von Emojis/Reactions)
-VERSION=$(python3 -c '
+# 2. Architektur dynamisch ermitteln
+ARCH=$(uname -m)
+if [ "$ARCH" = "x86_64" ]; then
+    DL_ARCH="amd64"
+elif [ "$ARCH" = "aarch64" ]; then
+    DL_ARCH="aarch64"
+else
+    echo "❌ Fehler: Architektur $ARCH wird von diesem Skript nicht unterstützt." >&2
+    exit 1
+fi
+
+# 3. Zuverlässige JSON-Abfrage
+if ! VERSION=$(python3 -c '
 import urllib.request, json
 try:
     req = urllib.request.urlopen("https://api.github.com/repos/fastfetch-cli/fastfetch/releases/latest")
     data = json.loads(req.read().decode())
-    # Entfernt ein eventuelles "v" vor der Version, falls die Entwickler das Tag-Format ändern
     print(data["tag_name"].lstrip("v"))
 except Exception:
     exit(1)
-')
+'); then
+    echo "❌ Fehler: Konnte die Versionsnummer von GitHub nicht abrufen (API-Limit oder Netzwerkfehler)." >&2
+    exit 1
+fi
 
-if [ -z "$VERSION" ]; then
-    echo "❌ Fehler: Konnte die Versionsnummer von GitHub nicht extrahieren." >&2
+# 4. Validierung der extrahierten Versionsnummer
+if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "❌ Fehler: Die abgerufene Version '$VERSION' hat ein unerwartetes Format." >&2
     exit 1
 fi
 
@@ -43,14 +57,19 @@ fi
 
 echo "🔄 Neue Version verfügbar: $VERSION (lokal: ${LOCAL_VERSION:-nicht installiert})"
 
-# 2. Zielverzeichnis dynamisch auf den Speicherort dieses Skripts setzen
+# Zielverzeichnis dynamisch auf den Speicherort dieses Skripts setzen
 DEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TARGET_RPM="$DEST_DIR/fastfetch-${VERSION}-linux-amd64.rpm"
+TARGET_RPM="$DEST_DIR/fastfetch-${VERSION}-linux-${DL_ARCH}.rpm"
 
-# 3. Download
-URL="https://github.com/fastfetch-cli/fastfetch/releases/download/${VERSION}/fastfetch-linux-amd64.rpm"
+# 5. Download mit Timeout-Sicherung (Fehlerhaftes 'v' aus der URL entfernt)
+URL="https://github.com/fastfetch-cli/fastfetch/releases/download/${VERSION}/fastfetch-linux-${DL_ARCH}.rpm"
 echo "⬇️ Lade Paket herunter in: $TARGET_RPM"
-curl -fL -# --retry 3 -o "$TARGET_RPM" "$URL"
+
+if ! curl --connect-timeout 10 --max-time 120 -fL -# --retry 3 -o "$TARGET_RPM" "$URL"; then
+    echo "❌ Fehler: Download fehlgeschlagen (Timeout oder Netzwerkfehler)." >&2
+    rm -f "$TARGET_RPM"
+    exit 1
+fi
 
 # Absicherung: Prüfen, ob die heruntergeladene Datei ein gültiges RPM-Paket ist
 echo "🛡️ Prüfe Datei-Integrität (RPM-Struktur)..."
@@ -60,11 +79,11 @@ if ! rpm -qip "$TARGET_RPM" >/dev/null 2>&1; then
     exit 1
 fi
 
-# 4. Installation
+# Installation
 echo "⚙️ Installiere Update (fordert evtl. sudo an)..."
 sudo dnf install -y "$TARGET_RPM"
 
-# 5. Aufräumen alter Versionen
+# Aufräumen alter Versionen
 echo "🧹 Entferne alte Fastfetch-Installationsdateien..."
 find "$DEST_DIR" -maxdepth 1 -name "fastfetch-*.rpm" ! -name "$(basename "$TARGET_RPM")" -delete
 
