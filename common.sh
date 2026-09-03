@@ -1,0 +1,124 @@
+#!/bin/bash
+# Gemeinsame Hilfsfunktionen für die update_*.sh-Skripte in diesem Repository.
+# Wird per "source" eingebunden, nicht direkt ausgeführt.
+# Wichtig: Der Dateiname beginnt bewusst NICHT mit "update_", damit update_all.sh
+# diese Datei nicht fälschlich als eigenständiges Update-Skript ausführt.
+
+# Prüft, ob ein Kommandozeilenwerkzeug installiert ist; bricht das Skript sonst ab.
+require_cmd() {
+    local cmd="$1"
+    local msg="$2"
+    command -v "$cmd" >/dev/null 2>&1 || { echo "❌ Fehler: $msg" >&2; exit 1; }
+}
+
+# Ermittelt die lokale CPU-Architektur und gibt den passenden Bezeichner aus,
+# den der jeweilige Anbieter in Download-URLs/Dateinamen verwendet.
+# Nutzung: WERT=$(detect_arch <wert_fuer_x86_64> <wert_fuer_aarch64>) || exit 1
+detect_arch() {
+    local x86_64_value="$1"
+    local aarch64_value="$2"
+    local arch
+    arch="$(uname -m)"
+    case "$arch" in
+        x86_64) echo "$x86_64_value" ;;
+        aarch64) echo "$aarch64_value" ;;
+        *)
+            echo "❌ Fehler: Architektur $arch wird von diesem Skript nicht unterstützt." >&2
+            return 1
+            ;;
+    esac
+}
+
+# Prüft, ob eine Versionsnummer ein plausibles Format hat (X.Y.Z, optional mit Suffix
+# wie "-rc1" oder "~beta2"), bevor sie in Dateinamen oder URLs verwendet wird.
+validate_version() {
+    local version="$1"
+    if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([a-zA-Z0-9.-]+)?$ ]]; then
+        echo "❌ Fehler: Die abgerufene Version '$version' hat ein unerwartetes Format." >&2
+        return 1
+    fi
+}
+
+# Wandelt eine Tilde (~), wie sie rpm für Vorabversionen nutzt, in einen Bindestrich
+# um, damit sich die lokale Version textuell mit einem GitHub-Tag vergleichen lässt.
+normalize_version() {
+    echo "${1//\~/-}"
+}
+
+# Gibt Erfolg (0) zurück, wenn ein Update von local_version auf remote_version
+# durchgeführt werden soll; Fehlschlag (1), wenn die lokale Version bereits gleich
+# oder neuer ist. Ein Downgrade auf eine ältere Release-Version wird so vermieden.
+# Der sort -V-Vergleich wird nur bei sauberem X.Y.Z-Format der lokalen Version
+# durchgeführt: Bei Suffixen (z.B. "2.1.0-rc1") würde sort -V diese fälschlich als
+# "neuer" einstufen und ein berechtigtes Update auf die finale Release blockieren.
+version_needs_update() {
+    local local_v="$1"
+    local remote_v="$2"
+
+    [ -z "$local_v" ] && return 0
+
+    if [ "$local_v" == "$remote_v" ]; then
+        return 1
+    fi
+
+    if [[ "$local_v" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        local newest
+        newest=$(printf '%s\n%s\n' "$local_v" "$remote_v" | sort -V | tail -n1)
+        [ "$newest" == "$local_v" ] && return 1
+    fi
+
+    return 0
+}
+
+# Lädt eine Textressource (z.B. eine HTML-Seite) mit Timeout-Schutz und gibt den
+# Inhalt auf stdout aus.
+fetch_text() {
+    curl --connect-timeout 10 --max-time 30 -fsSL "$1"
+}
+
+# Lädt ein RPM-Paket mit Timeout- und Retry-Schutz herunter. Bei Fehlschlag wird
+# eine unvollständige Datei entfernt.
+download_rpm() {
+    local url="$1"
+    local target="$2"
+    if ! curl --connect-timeout 10 --max-time 120 -fL -# --retry 3 -o "$target" "$url"; then
+        echo "❌ Fehler: Download fehlgeschlagen (Timeout oder Netzwerkfehler)." >&2
+        rm -f "$target"
+        return 1
+    fi
+}
+
+# Prüft die RPM-Struktur einer heruntergeladenen Datei; entfernt sie bei Beschädigung.
+verify_rpm() {
+    local target="$1"
+    echo "🛡️ Prüfe Datei-Integrität (RPM-Struktur)..."
+    if ! rpm -qip "$target" >/dev/null 2>&1; then
+        echo "❌ Fehler: Die heruntergeladene Datei ist beschädigt oder kein gültiges RPM-Paket. Abbruch." >&2
+        rm -f "$target"
+        return 1
+    fi
+}
+
+# Entfernt alte RPM-Dateien eines Programms im Zielverzeichnis, mit Ausnahme der
+# gerade installierten Version.
+cleanup_old_rpms() {
+    local dest_dir="$1"
+    local name_pattern="$2"
+    local keep_basename="$3"
+    find "$dest_dir" -maxdepth 1 -name "$name_pattern" ! -name "$keep_basename" -delete
+}
+
+# Räumt eine unvollständige Zieldatei auf, falls der Download per Strg+C
+# unterbrochen wird. clear_download_trap() nach einem erfolgreichen Download
+# aufrufen, damit spätere Schritte (z.B. die Installation) davon nicht betroffen sind.
+_DOWNLOAD_CLEANUP_TARGET=""
+
+trap_download_cleanup() {
+    _DOWNLOAD_CLEANUP_TARGET="$1"
+    trap 'rm -f "$_DOWNLOAD_CLEANUP_TARGET"' INT TERM
+}
+
+clear_download_trap() {
+    trap - INT TERM
+    _DOWNLOAD_CLEANUP_TARGET=""
+}

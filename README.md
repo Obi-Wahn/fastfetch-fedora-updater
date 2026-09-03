@@ -12,20 +12,23 @@ Eine Sammlung von Bash-Skripten, die Anwendungen unter Fedora Linux aktuell halt
 | `update_moonfin.sh` | [Moonfin](https://github.com/Moonfin-Client/Moonfin-Core) über die GitHub-Releases |
 | `update_OpenLogi.sh` | [OpenLogi](https://github.com/AprilNEA/OpenLogi) über die GitHub-Releases |
 
-Alle Skripte liegen direkt im Wurzelverzeichnis. Für Moonfin liegt zusätzlich eine Einrichtungsanleitung bei: [`Anleitung_Moonfin_auf_Fedora_44_einrichten.md`](./Anleitung_Moonfin_auf_Fedora_44_einrichten.md).
+Alle Skripte liegen direkt im Wurzelverzeichnis und binden [`common.sh`](./common.sh) ein, das gemeinsam genutzte Funktionen bereitstellt (siehe unten). `common.sh` ist keine eigenständige Updater; sie wird nur per `source` eingebunden und muss nicht ausführbar sein oder manuell gestartet werden.
+
+Für Moonfin liegt zusätzlich eine Einrichtungsanleitung bei: [`Anleitung_Moonfin_auf_Fedora_44_einrichten.md`](./Anleitung_Moonfin_auf_Fedora_44_einrichten.md).
 
 ## Gemeinsame Funktionsweise
 
-Alle Skripte folgen demselben Muster:
+Alle Skripte folgen demselben Muster; die wiederkehrenden Bausteine (Download, Prüfung, Versionsvergleich, Cleanup) liegen zentral in [`common.sh`](./common.sh), damit Verbesserungen an einer Stelle allen Skripten zugutekommen:
 
 * **Architekturerkennung:** Ermittelt per `uname -m` automatisch, ob x86_64 oder aarch64 vorliegt, und wählt das passende `.rpm`-Paket.
-* **Versionsabgleich:** Vergleicht die installierte Version (per `rpm -q` bzw. dem jeweiligen `--version`-Aufruf) mit der neuesten verfügbaren Version. Ist bereits alles aktuell, bricht das Skript ohne Download ab.
-* **Robuste API-/Web-Abfrage:** Nutzt Python (`urllib`/`json`) für zuverlässiges JSON-Parsing der GitHub-API bzw. `curl` mit Timeouts (`--connect-timeout`, `--max-time`) und Retry-Logik (`--retry`) für Downloads und Webseiten-Abfragen.
+* **Versionsabgleich mit Downgrade-Schutz:** Vergleicht die installierte Version (per `rpm -q` bzw. dem jeweiligen `--version`-Aufruf) mit der neuesten verfügbaren Version per `sort -V`. Ist die installierte Version bereits aktuell oder neuer, bricht das Skript ohne Download ab – ein versehentliches Downgrade wird so vermieden.
+* **Robuste API-/Web-Abfrage:** Nutzt Python (`urllib`/`json`) für zuverlässiges JSON-Parsing der GitHub-API (inkl. Timeout und Fehlerursache auf stderr) bzw. `curl` mit Timeouts (`--connect-timeout`, `--max-time`) und Retry-Logik (`--retry`) für Downloads und Webseiten-Abfragen.
 * **Validierung:** Prüft die extrahierte Versionsnummer per Regex, bevor sie in Dateinamen oder URLs verwendet wird.
 * **Integritätsprüfung:** Verifiziert jedes heruntergeladene Paket vor der Installation mit `rpm -qip` auf eine gültige RPM-Struktur.
+* **Interrupt-sicheres Aufräumen:** Ein `trap` entfernt eine unvollständig heruntergeladene Datei, falls der Download per Strg+C abgebrochen wird.
 * **User-Space First:** Download und Prüfung laufen ohne Root-Rechte; `sudo` wird nur für den finalen `dnf install`-Schritt angefordert.
 * **Striktes Fehlermanagement:** Jedes Skript nutzt `set -euo pipefail` und bricht bei Fehlern sauber mit einer verständlichen Meldung ab.
-* **Dateiverwaltung:** RPM-Pakete werden in das jeweilige Skriptverzeichnis heruntergeladen; nach einem erfolgreichen Update werden ältere Pakete desselben Programms automatisch entfernt.
+* **Dateiverwaltung:** RPM-Pakete werden in das jeweilige Skriptverzeichnis heruntergeladen (per `.gitignore` von Git ausgeschlossen); nach einem erfolgreichen Update werden ältere Pakete desselben Programms automatisch entfernt.
 
 ## `update_all.sh` – alle Updates auf einmal
 
@@ -51,7 +54,7 @@ chmod +x update_fastfetch.sh
 
 * **Betriebssystem:** Fedora Linux (oder kompatible RHEL-Derivate)
 * **Architektur:** x86_64 oder aarch64
-* **Abhängigkeiten:** `bash`, `curl`, `dnf`, `rpm`, `python3` (je nach Skript zusätzlich `awk`, `grep`, `sed`)
+* **Abhängigkeiten:** `bash`, `curl`, `dnf`, `rpm`, `python3`, `coreutils` (u.a. `sort -V` für den Downgrade-Schutz) (je nach Skript zusätzlich `awk`, `grep`, `sed`)
 
 ## Hinweis zur Entwicklung (KI-Transparenz)
 

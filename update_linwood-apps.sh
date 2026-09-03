@@ -3,27 +3,22 @@
 # Striktes Fehlermanagement
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
+
 # Prüfen, ob die benötigten Werkzeuge vorhanden sind
-command -v curl >/dev/null 2>&1 || { echo "❌ Fehler: curl ist nicht installiert." >&2; exit 1; }
-command -v dnf >/dev/null 2>&1 || { echo "❌ Fehler: dnf ist nicht installiert." >&2; exit 1; }
-command -v rpm >/dev/null 2>&1 || { echo "❌ Fehler: rpm ist nicht installiert." >&2; exit 1; }
-command -v python3 >/dev/null 2>&1 || { echo "❌ Fehler: python3 ist nicht installiert." >&2; exit 1; }
+require_cmd curl "curl ist nicht installiert."
+require_cmd dnf "dnf ist nicht installiert."
+require_cmd rpm "rpm ist nicht installiert."
+require_cmd python3 "python3 ist nicht installiert."
 
 # Zielverzeichnis dynamisch auf den Speicherort dieses Skripts setzen
-DEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEST_DIR="$SCRIPT_DIR"
 
 echo "🔍 Überprüfe Updates für Linwood Butterfly und Linwood Flow..."
 
 # Architektur dynamisch ermitteln
-ARCH=$(uname -m)
-if [ "$ARCH" = "x86_64" ]; then
-    DL_ARCH="x86_64"
-elif [ "$ARCH" = "aarch64" ]; then
-    DL_ARCH="aarch64"
-else
-    echo "❌ Fehler: Architektur $ARCH wird von diesem Skript nicht unterstützt." >&2
-    exit 1
-fi
+DL_ARCH=$(detect_arch "x86_64" "aarch64") || exit 1
 
 # Funktion: Holt die neueste Version und Download-URL via Python
 get_latest_release_info() {
@@ -32,7 +27,7 @@ get_latest_release_info() {
     python3 -c '
 import urllib.request, json, sys, re
 try:
-    req = urllib.request.urlopen(f"https://api.github.com/repos/LinwoodDev/{sys.argv[1]}/releases")
+    req = urllib.request.urlopen(f"https://api.github.com/repos/LinwoodDev/{sys.argv[1]}/releases", timeout=15)
     releases = json.loads(req.read().decode())
 
     for release in releases:
@@ -52,7 +47,8 @@ try:
                 exit(0)
 
     exit(1)
-except Exception:
+except Exception as e:
+    print(f"{type(e).__name__}: {e}", file=sys.stderr)
     exit(1)
 ' "$REPO" "$REPO_ARCH"
 }
@@ -71,7 +67,7 @@ for APP in "${APPS[@]}"; do
 
     # Fehleranfällige Zuweisung ersetzt durch saubere Fehlerabfangung für API-Abbrüche
     if ! API_RESPONSE=$(get_latest_release_info "$REPO" "$DL_ARCH"); then
-        echo "❌ Fehler: Konnte Release-Infos für $PKG_NAME nicht abrufen (API-Limit oder Netzwerkfehler)." >&2
+        echo "❌ Fehler: Konnte Release-Infos für $PKG_NAME nicht abrufen (siehe Ursache oben, oder API-Limit erreicht)." >&2
         continue
     fi
 
@@ -79,10 +75,7 @@ for APP in "${APPS[@]}"; do
     URL=$(echo "$API_RESPONSE" | cut -d'|' -f2)
 
     # Validierung der extrahierten Versionsnummer (inklusive Beta-Suffixe)
-    if [[ ! "$NEW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([a-zA-Z0-9.-]+)?$ ]]; then
-        echo "❌ Fehler: Die abgerufene Version '$NEW_VERSION' hat ein unerwartetes Format." >&2
-        continue
-    fi
+    validate_version "$NEW_VERSION" || continue
 
     # Lokale Version abrufen und normalisieren
     LOCAL_VERSION=""
@@ -90,16 +83,15 @@ for APP in "${APPS[@]}"; do
 
     if rpm -q "$PKG_NAME" >/dev/null 2>&1; then
         LOCAL_VERSION=$(rpm -q --queryformat '%{VERSION}' "$PKG_NAME")
-        # Wandelt eine Tilde (~) in ein Minus (-) um, damit der Text-Vergleich mit GitHub klappt
-        LOCAL_VERSION_NORMALIZED=$(echo "$LOCAL_VERSION" | tr '~' '-')
+        LOCAL_VERSION_NORMALIZED=$(normalize_version "$LOCAL_VERSION")
     fi
 
     echo "📦 Installierte Version ($PKG_NAME): ${LOCAL_VERSION:-nicht installiert}"
     echo "🆕 Neueste verfügbare Version:       ${NEW_VERSION}"
 
-    # Abgleich mit der normalisierten Version
-    if [ "$LOCAL_VERSION_NORMALIZED" == "$NEW_VERSION" ]; then
-        echo "✅ $PKG_NAME ist bereits auf dem neuesten Stand. Es ist kein Update nötig."
+    # Abgleich mit der normalisierten Version (inkl. Downgrade-Schutz)
+    if ! version_needs_update "$LOCAL_VERSION_NORMALIZED" "$NEW_VERSION"; then
+        echo "✅ $PKG_NAME ist bereits aktuell. Es ist kein Update nötig."
         continue
     fi
 
@@ -107,17 +99,14 @@ for APP in "${APPS[@]}"; do
     TARGET_RPM="$DEST_DIR/${PKG_NAME}-${NEW_VERSION}-linux-${DL_ARCH}.rpm"
 
     echo "⬇️ Lade Paket von $URL herunter..."
-    # Timeout und Retry-Sicherung hinzugefügt
-    if ! curl --connect-timeout 10 --max-time 120 -fL -# --retry 3 -o "$TARGET_RPM" "$URL"; then
-         echo "❌ Fehler beim Download (Timeout oder Netzwerkfehler)." >&2
-         rm -f "$TARGET_RPM"
-         continue
+    trap_download_cleanup "$TARGET_RPM"
+    if ! download_rpm "$URL" "$TARGET_RPM"; then
+        clear_download_trap
+        continue
     fi
+    clear_download_trap
 
-    echo "🛡️ Prüfe Datei-Integrität (RPM-Struktur)..."
-    if ! rpm -qip "$TARGET_RPM" >/dev/null 2>&1; then
-        echo "❌ Fehler: Die heruntergeladene Datei ist beschädigt." >&2
-        rm -f "$TARGET_RPM"
+    if ! verify_rpm "$TARGET_RPM"; then
         continue
     fi
 
@@ -125,7 +114,7 @@ for APP in "${APPS[@]}"; do
     sudo dnf install -y "$TARGET_RPM"
 
     echo "🧹 Entferne alte Installationsdateien für $PKG_NAME..."
-    find "$DEST_DIR" -maxdepth 1 -name "${PKG_NAME}-*.rpm" ! -name "$(basename "$TARGET_RPM")" -delete
+    cleanup_old_rpms "$DEST_DIR" "${PKG_NAME}-*.rpm" "$(basename "$TARGET_RPM")"
 
     echo "✅ Installation von $PKG_NAME ($NEW_VERSION) erfolgreich abgeschlossen!"
 done

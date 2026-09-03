@@ -3,33 +3,28 @@
 # Striktes Fehlermanagement aktivieren
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
+
 # Prüfen, ob die benötigten Werkzeuge vorhanden sind
-command -v curl >/dev/null 2>&1 || { echo "❌ Fehler: curl ist nicht installiert." >&2; exit 1; }
-command -v dnf >/dev/null 2>&1 || { echo "❌ Fehler: dnf ist nicht installiert." >&2; exit 1; }
-command -v rpm >/dev/null 2>&1 || { echo "❌ Fehler: rpm ist nicht installiert." >&2; exit 1; }
-command -v python3 >/dev/null 2>&1 || { echo "❌ Fehler: python3 ist nicht installiert." >&2; exit 1; }
+require_cmd curl "curl ist nicht installiert."
+require_cmd dnf "dnf ist nicht installiert."
+require_cmd rpm "rpm ist nicht installiert."
+require_cmd python3 "python3 ist nicht installiert."
 
 echo "🔍 Suche nach der neuesten OpenLogi-Version mit verfügbarem RPM-Paket..."
 
 # Architektur dynamisch ermitteln
-ARCH=$(uname -m)
-if [ "$ARCH" = "x86_64" ]; then
-    DL_ARCH="amd64"
-elif [ "$ARCH" = "aarch64" ]; then
-    DL_ARCH="arm64"
-else
-    echo "❌ Fehler: Architektur $ARCH wird von diesem Skript nicht unterstützt." >&2
-    exit 1
-fi
+DL_ARCH=$(detect_arch "amd64" "arm64") || exit 1
 
 # API-Abfrage mit sicherem Error-Handling
 if ! READ_DATA=$(python3 -c '
 import urllib.request, json, sys
 try:
-    req = urllib.request.urlopen("https://api.github.com/repos/AprilNEA/OpenLogi/releases")
+    req = urllib.request.urlopen("https://api.github.com/repos/AprilNEA/OpenLogi/releases", timeout=15)
     releases = json.loads(req.read().decode())
     target_arch = sys.argv[1]
-    
+
     for rel in releases:
         for asset in rel.get("assets", []):
             name = asset.get("name", "")
@@ -39,10 +34,11 @@ try:
                 print(f"{tag}|{url}")
                 exit(0)
     exit(1)
-except Exception:
+except Exception as e:
+    print(f"{type(e).__name__}: {e}", file=sys.stderr)
     exit(1)
 ' "$DL_ARCH"); then
-    echo "❌ Fehler: Konnte in den GitHub-Releases kein passendes RPM-Paket finden (API-Limit oder Netzwerkfehler)." >&2
+    echo "❌ Fehler: Konnte in den GitHub-Releases kein passendes RPM-Paket finden (siehe Ursache oben, oder API-Limit erreicht)." >&2
     exit 1
 fi
 
@@ -50,23 +46,20 @@ LATEST_VERSION=$(echo "$READ_DATA" | cut -d'|' -f1)
 LATEST_URL=$(echo "$READ_DATA" | cut -d'|' -f2)
 
 # Validierung der extrahierten Versionsnummer (Regex-Schutz)
-if [[ ! "$LATEST_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([a-zA-Z0-9.-]+)?$ ]]; then
-    echo "❌ Fehler: Die abgerufene Version '$LATEST_VERSION' hat ein unerwartetes Format." >&2
-    exit 1
-fi
+validate_version "$LATEST_VERSION" || exit 1
 
 LOCAL_VERSION=""
 LOCAL_VERSION_NORMALIZED=""
 if rpm -q openlogi >/dev/null 2>&1; then
     LOCAL_VERSION=$(rpm -q --queryformat '%{VERSION}\n' openlogi)
-    LOCAL_VERSION_NORMALIZED=$(echo "$LOCAL_VERSION" | tr '~' '-')
+    LOCAL_VERSION_NORMALIZED=$(normalize_version "$LOCAL_VERSION")
 fi
 
 echo "📦 Installierte Version: ${LOCAL_VERSION:-none}"
 echo "🌐 Neueste verfügbare Version mit RPM: ${LATEST_VERSION}"
 
-# Versionsvergleich (mit normalisierter Version)
-if [ "$LOCAL_VERSION_NORMALIZED" == "$LATEST_VERSION" ]; then
+# Versionsvergleich (inkl. Downgrade-Schutz)
+if ! version_needs_update "$LOCAL_VERSION_NORMALIZED" "$LATEST_VERSION"; then
     echo "✅ Du hast bereits die aktuellste Version mit RPM-Paket installiert. Es ist kein Update nötig."
     exit 0
 fi
@@ -74,29 +67,22 @@ fi
 echo "🔄 Ein Update auf Version $LATEST_VERSION ist verfügbar! Starte Download..."
 
 # Zielverzeichnis dynamisch auf den Speicherort dieses Skripts setzen
-DEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEST_DIR="$SCRIPT_DIR"
 TARGET_RPM="$DEST_DIR/openlogi-${LATEST_VERSION}-linux-${DL_ARCH}.rpm"
 
 echo "⬇️ Lade RPM-Paket herunter in: $TARGET_RPM"
-if ! curl --connect-timeout 10 --max-time 120 -fL -# --retry 3 -o "$TARGET_RPM" "$LATEST_URL"; then
-    echo "❌ Fehler beim Download (Timeout oder Netzwerkfehler)." >&2
-    rm -f "$TARGET_RPM"
-    exit 1
-fi
+trap_download_cleanup "$TARGET_RPM"
+download_rpm "$LATEST_URL" "$TARGET_RPM" || exit 1
+clear_download_trap
 
-echo "🛡️ Prüfe Datei-Integrität (RPM-Struktur)..."
-if ! rpm -qip "$TARGET_RPM" >/dev/null 2>&1; then
-    echo "❌ Fehler: Die heruntergeladene Datei ist kein gültiges RPM-Paket." >&2
-    rm -f "$TARGET_RPM"
-    exit 1
-fi
+verify_rpm "$TARGET_RPM" || exit 1
 
 echo "⚙️ Installiere Update (fordert evtl. sudo an)..."
 sudo dnf install -y "$TARGET_RPM"
 
 # Alte Versionen bereinigen
 echo "🧹 Entferne alte OpenLogi-Installationsdateien..."
-find "$DEST_DIR" -maxdepth 1 -name "openlogi-*.rpm" ! -name "$(basename "$TARGET_RPM")" -delete
+cleanup_old_rpms "$DEST_DIR" "openlogi-*.rpm" "$(basename "$TARGET_RPM")"
 
 echo "------------------------------------------------"
 echo "✅ Update auf OpenLogi $LATEST_VERSION erfolgreich abgeschlossen!"

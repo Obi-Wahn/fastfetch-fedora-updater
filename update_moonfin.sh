@@ -3,11 +3,14 @@
 # Striktes Fehlermanagement aktivieren
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
+
 # Prüfen, ob die benötigten Werkzeuge vorhanden sind
-command -v curl >/dev/null 2>&1 || { echo "❌ Fehler: curl ist nicht installiert." >&2; exit 1; }
-command -v dnf >/dev/null 2>&1 || { echo "❌ Fehler: dnf ist nicht installiert. Dieses Skript erfordert Fedora." >&2; exit 1; }
-command -v rpm >/dev/null 2>&1 || { echo "❌ Fehler: rpm ist nicht installiert." >&2; exit 1; }
-command -v python3 >/dev/null 2>&1 || { echo "❌ Fehler: python3 ist nicht installiert." >&2; exit 1; }
+require_cmd curl "curl ist nicht installiert."
+require_cmd dnf "dnf ist nicht installiert."
+require_cmd rpm "rpm ist nicht installiert."
+require_cmd python3 "python3 ist nicht installiert."
 
 echo "🔍 Überprüfe auf neue Moonfin-Versionen..."
 
@@ -30,7 +33,7 @@ fi
 if ! API_RESPONSE=$(python3 -c '
 import urllib.request, json, sys, re
 try:
-    req = urllib.request.urlopen("https://api.github.com/repos/Moonfin-Client/Moonfin-Core/releases/latest")
+    req = urllib.request.urlopen("https://api.github.com/repos/Moonfin-Client/Moonfin-Core/releases/latest", timeout=15)
     data = json.loads(req.read().decode())
     version = data.get("tag_name", "").lstrip("v")
 
@@ -57,10 +60,11 @@ try:
         print(f"{version}|{download_url}")
         exit(0)
     exit(1)
-except Exception:
+except Exception as e:
+    print(f"{type(e).__name__}: {e}", file=sys.stderr)
     exit(1)
 ' "$VALID_ARCHS" "$INVALID_ARCHS"); then
-    echo "❌ Fehler: Konnte kein passendes RPM-Paket für $ARCH auf GitHub finden (oder API-Limit erreicht)." >&2
+    echo "❌ Fehler: Konnte kein passendes RPM-Paket für $ARCH auf GitHub finden (siehe Ursache oben, oder API-Limit erreicht)." >&2
     exit 1
 fi
 
@@ -68,53 +72,43 @@ LATEST_VERSION=$(echo "$API_RESPONSE" | cut -d'|' -f1)
 LATEST_URL=$(echo "$API_RESPONSE" | cut -d'|' -f2)
 
 # Validierung der extrahierten Versionsnummer
-if [[ ! "$LATEST_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([a-zA-Z0-9.-]+)?$ ]]; then
-    echo "❌ Fehler: Die abgerufene Version '$LATEST_VERSION' hat ein unerwartetes Format." >&2
-    exit 1
-fi
+validate_version "$LATEST_VERSION" || exit 1
 
 # Lokale Version abrufen und normalisieren
 LOCAL_VERSION=""
 LOCAL_VERSION_NORMALIZED=""
 if rpm -q moonfin >/dev/null 2>&1; then
     LOCAL_VERSION=$(rpm -q --queryformat '%{VERSION}\n' moonfin)
-    LOCAL_VERSION_NORMALIZED=$(echo "$LOCAL_VERSION" | tr '~' '-')
+    LOCAL_VERSION_NORMALIZED=$(normalize_version "$LOCAL_VERSION")
 fi
 
 echo "📦 Installierte Version: ${LOCAL_VERSION:-nicht installiert}"
 echo "🌐 Neueste Version:      ${LATEST_VERSION}"
 
-# Versionsvergleich (mit normalisierter Version)
-if [ "$LOCAL_VERSION_NORMALIZED" == "$LATEST_VERSION" ]; then
+# Versionsvergleich (inkl. Downgrade-Schutz)
+if ! version_needs_update "$LOCAL_VERSION_NORMALIZED" "$LATEST_VERSION"; then
     echo "✅ Du hast bereits die aktuellste Version installiert. Es ist kein Update nötig."
     exit 0
 fi
 
 # Zielverzeichnis dynamisch auf den Speicherort dieses Skripts setzen
-DEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEST_DIR="$SCRIPT_DIR"
 TARGET_RPM="$DEST_DIR/moonfin-${LATEST_VERSION}-${DL_ARCH}.rpm"
 
 echo "⬇️ Lade RPM-Paket herunter in: $TARGET_RPM"
-if ! curl --connect-timeout 10 --max-time 120 --http3 -4 -fL -# --retry 3 -o "$TARGET_RPM" "$LATEST_URL"; then
-    echo "❌ Fehler beim Download (Timeout oder Netzwerkfehler)." >&2
-    rm -f "$TARGET_RPM"
-    exit 1
-fi
+trap_download_cleanup "$TARGET_RPM"
+download_rpm "$LATEST_URL" "$TARGET_RPM" || exit 1
+clear_download_trap
 
 # Absicherung: Prüfen, ob die heruntergeladene Datei ein gültiges RPM-Paket ist
-echo "🛡️ Prüfe Datei-Integrität (RPM-Struktur)..."
-if ! rpm -qip "$TARGET_RPM" >/dev/null 2>&1; then
-    echo "❌ Fehler: Die heruntergeladene Datei ist beschädigt oder kein gültiges RPM-Paket. Abbruch." >&2
-    rm -f "$TARGET_RPM"
-    exit 1
-fi
+verify_rpm "$TARGET_RPM" || exit 1
 
 echo "⚙️ Installiere Update (fordert evtl. sudo an)..."
 sudo dnf install -y "$TARGET_RPM"
 
 # Aufräumen alter Versionen
 echo "🧹 Entferne alte Moonfin-Installationsdateien..."
-find "$DEST_DIR" -maxdepth 1 -name "moonfin-*.rpm" ! -name "$(basename "$TARGET_RPM")" -delete
+cleanup_old_rpms "$DEST_DIR" "moonfin-*.rpm" "$(basename "$TARGET_RPM")"
 
 echo "------------------------------------------------"
 echo "✅ Installation von Moonfin $LATEST_VERSION erfolgreich abgeschlossen!"
