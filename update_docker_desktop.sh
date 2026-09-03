@@ -52,17 +52,21 @@ if rpm -q docker-desktop >/dev/null 2>&1; then
     LOCAL_VERSION_NORMALIZED=$(normalize_version "$LOCAL_VERSION")
 fi
 
-# 8. Versionsabgleich (inkl. Downgrade-Schutz)
+# 8. Zielverzeichnis und Zieldatei (werden in beiden Zweigen unten gebraucht)
+DEST_DIR="$SCRIPT_DIR"
+TARGET_RPM="$DEST_DIR/docker-desktop-${VERSION}-${FILE_ARCH}.rpm"
+
+# 9. Versionsabgleich (inkl. Downgrade-Schutz)
 if ! version_needs_update "$LOCAL_VERSION_NORMALIZED" "$VERSION"; then
     echo "✅ Docker Desktop ist bereits aktuell (installiert: ${LOCAL_VERSION:-nicht installiert}, Release: $VERSION)."
+    # Auch ohne anstehendes Update immer eine lokale RPM-Kopie der aktuellen Version sicherstellen
+    if [ "$LOCAL_VERSION_NORMALIZED" == "$VERSION" ]; then
+        ensure_local_backup "$RPM_URL" "$TARGET_RPM" "$DEST_DIR" "docker-desktop-*.rpm"
+    fi
     exit 0
 fi
 
 echo "🔄 Neue Version verfügbar: $VERSION (lokal: ${LOCAL_VERSION:-nicht installiert})"
-
-# 9. Zielverzeichnis dynamisch auf den Speicherort dieses Skripts setzen
-DEST_DIR="$SCRIPT_DIR"
-TARGET_RPM="$DEST_DIR/docker-desktop-${VERSION}-${FILE_ARCH}.rpm"
 
 # 10. Download mit Fortschrittsanzeige, Fehlerprüfung und Timeout-Logik
 echo "⬇️ Lade Paket herunter in: $TARGET_RPM"

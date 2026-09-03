@@ -42,20 +42,24 @@ if command -v fastfetch >/dev/null 2>&1; then
     LOCAL_VERSION_NORMALIZED=$(normalize_version "$LOCAL_VERSION")
 fi
 
+# 5. Zielverzeichnis, Zieldatei und Download-URL (werden in beiden Zweigen unten gebraucht)
+DEST_DIR="$SCRIPT_DIR"
+TARGET_RPM="$DEST_DIR/fastfetch-${VERSION}-linux-${DL_ARCH}.rpm"
+URL="https://github.com/fastfetch-cli/fastfetch/releases/download/${VERSION}/fastfetch-linux-${DL_ARCH}.rpm"
+
 # Versionsvergleich (inkl. Downgrade-Schutz)
 if ! version_needs_update "$LOCAL_VERSION_NORMALIZED" "$VERSION"; then
     echo "✅ Fastfetch ist bereits aktuell (installiert: ${LOCAL_VERSION:-nicht installiert}, Release: $VERSION)."
+    # Auch ohne anstehendes Update immer eine lokale RPM-Kopie der aktuellen Version sicherstellen
+    if [ "$LOCAL_VERSION_NORMALIZED" == "$VERSION" ]; then
+        ensure_local_backup "$URL" "$TARGET_RPM" "$DEST_DIR" "fastfetch-*.rpm"
+    fi
     exit 0
 fi
 
 echo "🔄 Neue Version verfügbar: $VERSION (lokal: ${LOCAL_VERSION:-nicht installiert})"
 
-# 5. Zielverzeichnis dynamisch auf den Speicherort dieses Skripts setzen
-DEST_DIR="$SCRIPT_DIR"
-TARGET_RPM="$DEST_DIR/fastfetch-${VERSION}-linux-${DL_ARCH}.rpm"
-
 # 6. Download mit Timeout-Sicherung
-URL="https://github.com/fastfetch-cli/fastfetch/releases/download/${VERSION}/fastfetch-linux-${DL_ARCH}.rpm"
 echo "⬇️ Lade Paket herunter in: $TARGET_RPM"
 
 trap_download_cleanup "$TARGET_RPM"

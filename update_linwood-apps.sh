@@ -56,14 +56,20 @@ for APP in "${APPS[@]}"; do
     echo "📦 Installierte Version ($PKG_NAME): ${LOCAL_VERSION:-nicht installiert}"
     echo "🆕 Neueste verfügbare Version:       ${NEW_VERSION}"
 
+    # Zieldatei (wird in beiden Zweigen unten gebraucht)
+    TARGET_RPM="$DEST_DIR/${PKG_NAME}-${NEW_VERSION}-linux-${DL_ARCH}.rpm"
+
     # Abgleich mit der normalisierten Version (inkl. Downgrade-Schutz)
     if ! version_needs_update "$LOCAL_VERSION_NORMALIZED" "$NEW_VERSION"; then
         echo "✅ $PKG_NAME ist bereits aktuell. Es ist kein Update nötig."
+        # Auch ohne anstehendes Update immer eine lokale RPM-Kopie der aktuellen Version sicherstellen
+        if [ "$LOCAL_VERSION_NORMALIZED" == "$NEW_VERSION" ]; then
+            ensure_local_backup "$URL" "$TARGET_RPM" "$DEST_DIR" "${PKG_NAME}-*.rpm"
+        fi
         continue
     fi
 
     echo "🔄 Update verfügbar! Starte Download..."
-    TARGET_RPM="$DEST_DIR/${PKG_NAME}-${NEW_VERSION}-linux-${DL_ARCH}.rpm"
 
     echo "⬇️ Lade Paket von $URL herunter..."
     trap_download_cleanup "$TARGET_RPM"
