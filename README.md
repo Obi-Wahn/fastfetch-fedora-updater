@@ -1,4 +1,4 @@
-# Fedora App Updater
+# Fedora Update Scripts
 
 Eine Sammlung von Bash-Skripten, die Anwendungen unter Fedora Linux aktuell halten, deren Updates nicht (zeitnah) über die offiziellen Paketquellen (`dnf`) verfügbar sind. Jedes Skript prüft die neueste verfügbare Version (meist über die GitHub-API oder die offizielle Release-Seite), vergleicht sie mit der lokal installierten Version und installiert bei Bedarf automatisch das passende `.rpm`-Paket.
 
@@ -12,7 +12,7 @@ Eine Sammlung von Bash-Skripten, die Anwendungen unter Fedora Linux aktuell halt
 | `update_moonfin.sh` | [Moonfin](https://github.com/Moonfin-Client/Moonfin-Core) über die GitHub-Releases |
 | `update_OpenLogi.sh` | [OpenLogi](https://github.com/AprilNEA/OpenLogi) über die GitHub-Releases |
 
-Alle Skripte liegen direkt im Wurzelverzeichnis. Für Moonfin liegt zusätzlich eine Einrichtungsanleitung bei: [`Anleitung_ Moonfin auf Fedora 44 einrichten.docx`](./Anleitung_%20Moonfin%20auf%20Fedora%2044%20einrichten.docx).
+Alle Skripte liegen direkt im Wurzelverzeichnis. Für Moonfin liegt zusätzlich eine Einrichtungsanleitung bei: [`Anleitung_Moonfin_auf_Fedora_44_einrichten.md`](./Anleitung_Moonfin_auf_Fedora_44_einrichten.md).
 
 ## Gemeinsame Funktionsweise
 
