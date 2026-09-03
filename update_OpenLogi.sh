@@ -67,7 +67,7 @@ sudo dnf install -y "$TARGET_RPM"
 
 # Alte Versionen bereinigen
 echo "🧹 Entferne alte OpenLogi-Installationsdateien..."
-cleanup_old_rpms "$DEST_DIR" "openlogi-*.rpm" "$(basename "$TARGET_RPM")"
+cleanup_old_rpms "$DEST_DIR" "openlogi-*.rpm" "$(basename "$TARGET_RPM")" || true
 
 echo "------------------------------------------------"
 echo "✅ Update auf OpenLogi $LATEST_VERSION erfolgreich abgeschlossen!"

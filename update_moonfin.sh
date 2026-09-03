@@ -112,7 +112,7 @@ sudo dnf install -y "$TARGET_RPM"
 
 # Aufräumen alter Versionen
 echo "🧹 Entferne alte Moonfin-Installationsdateien..."
-cleanup_old_rpms "$DEST_DIR" "moonfin-*.rpm" "$(basename "$TARGET_RPM")"
+cleanup_old_rpms "$DEST_DIR" "moonfin-*.rpm" "$(basename "$TARGET_RPM")" || true
 
 echo "------------------------------------------------"
 echo "✅ Installation von Moonfin $LATEST_VERSION erfolgreich abgeschlossen!"

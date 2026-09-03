@@ -1,5 +1,7 @@
 # Fedora Update Scripts
 
+[![Shell Script Checks](https://github.com/Obi-Wahn/fedora-update-scripts/actions/workflows/shellcheck.yml/badge.svg)](https://github.com/Obi-Wahn/fedora-update-scripts/actions/workflows/shellcheck.yml)
+
 Eine Sammlung von Bash-Skripten, die Anwendungen unter Fedora Linux aktuell halten, deren Updates nicht (zeitnah) über die offiziellen Paketquellen (`dnf`) verfügbar sind. Jedes Skript prüft die neueste verfügbare Version (meist über die GitHub-API oder die offizielle Release-Seite), vergleicht sie mit der lokal installierten Version und installiert bei Bedarf automatisch das passende `.rpm`-Paket.
 
 ## Enthaltene Updater
