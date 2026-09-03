@@ -61,7 +61,7 @@ if ! version_needs_update "$LOCAL_VERSION_NORMALIZED" "$VERSION"; then
     echo "✅ Docker Desktop ist bereits aktuell (installiert: ${LOCAL_VERSION:-nicht installiert}, Release: $VERSION)."
     # Auch ohne anstehendes Update immer eine lokale RPM-Kopie der aktuellen Version sicherstellen
     if [ "$LOCAL_VERSION_NORMALIZED" == "$VERSION" ]; then
-        ensure_local_backup "$RPM_URL" "$TARGET_RPM" "$DEST_DIR" "docker-desktop-*.rpm"
+        ensure_local_backup "$RPM_URL" "$TARGET_RPM" "$DEST_DIR" "docker-desktop-*.rpm" || true
     fi
     exit 0
 fi

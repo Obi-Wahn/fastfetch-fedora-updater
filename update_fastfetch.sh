@@ -52,7 +52,7 @@ if ! version_needs_update "$LOCAL_VERSION_NORMALIZED" "$VERSION"; then
     echo "✅ Fastfetch ist bereits aktuell (installiert: ${LOCAL_VERSION:-nicht installiert}, Release: $VERSION)."
     # Auch ohne anstehendes Update immer eine lokale RPM-Kopie der aktuellen Version sicherstellen
     if [ "$LOCAL_VERSION_NORMALIZED" == "$VERSION" ]; then
-        ensure_local_backup "$URL" "$TARGET_RPM" "$DEST_DIR" "fastfetch-*.rpm"
+        ensure_local_backup "$URL" "$TARGET_RPM" "$DEST_DIR" "fastfetch-*.rpm" || true
     fi
     exit 0
 fi

@@ -64,7 +64,7 @@ for APP in "${APPS[@]}"; do
         echo "✅ $PKG_NAME ist bereits aktuell. Es ist kein Update nötig."
         # Auch ohne anstehendes Update immer eine lokale RPM-Kopie der aktuellen Version sicherstellen
         if [ "$LOCAL_VERSION_NORMALIZED" == "$NEW_VERSION" ]; then
-            ensure_local_backup "$URL" "$TARGET_RPM" "$DEST_DIR" "${PKG_NAME}-*.rpm"
+            ensure_local_backup "$URL" "$TARGET_RPM" "$DEST_DIR" "${PKG_NAME}-*.rpm" || true
         fi
         continue
     fi
