@@ -20,39 +20,6 @@ echo "🔍 Überprüfe Updates für Linwood Butterfly und Linwood Flow..."
 # Architektur dynamisch ermitteln
 DL_ARCH=$(detect_arch "x86_64" "aarch64") || exit 1
 
-# Funktion: Holt die neueste Version und Download-URL via Python
-get_latest_release_info() {
-    local REPO=$1
-    local REPO_ARCH=$2
-    python3 -c '
-import urllib.request, json, sys, re
-try:
-    req = urllib.request.urlopen(f"https://api.github.com/repos/LinwoodDev/{sys.argv[1]}/releases", timeout=15)
-    releases = json.loads(req.read().decode())
-
-    for release in releases:
-        version = release.get("tag_name", "").lstrip("v")
-
-        # Prüfen auf normale Versionen ODER Beta-Versionen
-        if re.match(r"^\d+\.\d+\.\d+", version):
-            download_url = ""
-            asset_suffix = f"linux-{sys.argv[2]}.rpm"
-            for asset in release.get("assets", []):
-                if asset["name"].endswith(asset_suffix):
-                    download_url = asset["browser_download_url"]
-                    break
-
-            if download_url:
-                print(f"{version}|{download_url}")
-                exit(0)
-
-    exit(1)
-except Exception as e:
-    print(f"{type(e).__name__}: {e}", file=sys.stderr)
-    exit(1)
-' "$REPO" "$REPO_ARCH"
-}
-
 # Apps definieren: "Repository-Name|Installierter-Paketname"
 APPS=(
     "butterfly|linwood-butterfly"
@@ -66,7 +33,7 @@ for APP in "${APPS[@]}"; do
     echo "🌐 Frage GitHub-API für $PKG_NAME ab..."
 
     # Fehleranfällige Zuweisung ersetzt durch saubere Fehlerabfangung für API-Abbrüche
-    if ! API_RESPONSE=$(get_latest_release_info "$REPO" "$DL_ARCH"); then
+    if ! API_RESPONSE=$(find_latest_github_rpm_release "LinwoodDev/$REPO" "linux-${DL_ARCH}.rpm"); then
         echo "❌ Fehler: Konnte Release-Infos für $PKG_NAME nicht abrufen (siehe Ursache oben, oder API-Limit erreicht)." >&2
         continue
     fi

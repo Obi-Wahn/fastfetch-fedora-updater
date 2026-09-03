@@ -18,26 +18,7 @@ echo "🔍 Suche nach der neuesten OpenLogi-Version mit verfügbarem RPM-Paket..
 DL_ARCH=$(detect_arch "amd64" "arm64") || exit 1
 
 # API-Abfrage mit sicherem Error-Handling
-if ! READ_DATA=$(python3 -c '
-import urllib.request, json, sys
-try:
-    req = urllib.request.urlopen("https://api.github.com/repos/AprilNEA/OpenLogi/releases", timeout=15)
-    releases = json.loads(req.read().decode())
-    target_arch = sys.argv[1]
-
-    for rel in releases:
-        for asset in rel.get("assets", []):
-            name = asset.get("name", "")
-            if name.endswith(f"linux-{target_arch}.rpm"):
-                tag = rel.get("tag_name", "").lstrip("v")
-                url = asset["browser_download_url"]
-                print(f"{tag}|{url}")
-                exit(0)
-    exit(1)
-except Exception as e:
-    print(f"{type(e).__name__}: {e}", file=sys.stderr)
-    exit(1)
-' "$DL_ARCH"); then
+if ! READ_DATA=$(find_latest_github_rpm_release "AprilNEA/OpenLogi" "linux-${DL_ARCH}.rpm"); then
     echo "❌ Fehler: Konnte in den GitHub-Releases kein passendes RPM-Paket finden (siehe Ursache oben, oder API-Limit erreicht)." >&2
     exit 1
 fi
