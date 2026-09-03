@@ -4,15 +4,15 @@ Eine Sammlung von Bash-Skripten, die Anwendungen unter Fedora Linux aktuell halt
 
 ## Enthaltene Updater
 
-| Ordner | Skript | Aktualisiert |
-| --- | --- | --- |
-| [`Fastfetch Update/`](./Fastfetch%20Update) | `update_fastfetch.sh` | [Fastfetch](https://github.com/fastfetch-cli/fastfetch) über die GitHub-Releases |
-| [`Docker Desktop Update/`](./Docker%20Desktop%20Update) | `update_docker_desktop.sh` | [Docker Desktop](https://www.docker.com/products/docker-desktop/) über die offiziellen Release Notes |
-| [`Linwood Apps Update/`](./Linwood%20Apps%20Update) | `update_linwood-apps.sh` | [Linwood Butterfly](https://github.com/LinwoodDev/butterfly) & [Linwood Flow](https://github.com/LinwoodDev/Flow) über die GitHub-Releases |
-| [`Moonfin Update/`](./Moonfin%20Update) | `update_moonfin.sh` | [Moonfin](https://github.com/Moonfin-Client/Moonfin-Core) über die GitHub-Releases |
-| [`OpenLogi Update/`](./OpenLogi%20Update) | `update_OpenLogi.sh` | [OpenLogi](https://github.com/AprilNEA/OpenLogi) über die GitHub-Releases |
+| Skript | Aktualisiert |
+| --- | --- |
+| `update_fastfetch.sh` | [Fastfetch](https://github.com/fastfetch-cli/fastfetch) über die GitHub-Releases |
+| `update_docker_desktop.sh` | [Docker Desktop](https://www.docker.com/products/docker-desktop/) über die offiziellen Release Notes |
+| `update_linwood-apps.sh` | [Linwood Butterfly](https://github.com/LinwoodDev/butterfly) & [Linwood Flow](https://github.com/LinwoodDev/Flow) über die GitHub-Releases |
+| `update_moonfin.sh` | [Moonfin](https://github.com/Moonfin-Client/Moonfin-Core) über die GitHub-Releases |
+| `update_OpenLogi.sh` | [OpenLogi](https://github.com/AprilNEA/OpenLogi) über die GitHub-Releases |
 
-Jeder Ordner enthält das jeweilige Update-Skript sowie ggf. zusätzliche Hinweise (z. B. eine Einrichtungsanleitung bei Moonfin).
+Alle Skripte liegen direkt im Wurzelverzeichnis. Für Moonfin liegt zusätzlich eine Einrichtungsanleitung bei: [`Anleitung_ Moonfin auf Fedora 44 einrichten.docx`](./Anleitung_%20Moonfin%20auf%20Fedora%2044%20einrichten.docx).
 
 ## Gemeinsame Funktionsweise
 
@@ -29,7 +29,7 @@ Alle Skripte folgen demselben Muster:
 
 ## `update_all.sh` – alle Updates auf einmal
 
-Im Wurzelverzeichnis liegt `update_all.sh`, das alle `update_*.sh`-Skripte in den Unterordnern nacheinander ausführt:
+`update_all.sh` führt alle `update_*.sh`-Skripte im selben Verzeichnis nacheinander aus:
 
 ```bash
 chmod +x update_all.sh
@@ -43,7 +43,6 @@ Dabei wird einmalig `sudo`-Zugriff angefordert und im Hintergrund wachgehalten, 
 Jedes Skript lässt sich auch unabhängig von `update_all.sh` starten:
 
 ```bash
-cd "Fastfetch Update"
 chmod +x update_fastfetch.sh
 ./update_fastfetch.sh
 ```

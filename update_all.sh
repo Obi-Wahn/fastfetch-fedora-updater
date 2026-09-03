@@ -18,15 +18,20 @@ SUDO_PID=$!
 
 # Verzeichnis dynamisch auf den Speicherort dieses Skripts setzen
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MASTER_SCRIPT="$SCRIPT_DIR/$(basename "$0")"
 
 # Array für fehlgeschlagene Skripte (Punkt 2)
 FAILED=()
 
-# Alle "update_*.sh"-Skripte eine Ebene tiefer suchen, z.B. "Fastfetch Update/update_fastfetch.sh"
-# (mindepth/maxdepth 2 schließt dieses Master-Skript im Wurzelverzeichnis automatisch aus)
-while IFS= read -r -d '' script; do
+# Alle Dateien suchen, die mit "update_" beginnen und auf ".sh" enden
+for script in "$SCRIPT_DIR"/update_*.sh; do
 
-    CLEAN_NAME=$(basename "$(dirname "$script")")
+    # Das Master-Skript überspringen
+    if [ "$script" == "$MASTER_SCRIPT" ]; then
+        continue
+    fi
+
+    CLEAN_NAME=$(basename "$script" | sed -e 's/update_//' -e 's/\.sh//')
 
     echo "========================================"
     echo "🔄 Führe aus: $CLEAN_NAME"
@@ -48,7 +53,7 @@ while IFS= read -r -d '' script; do
         echo "⚠️ Fehler bei $CLEAN_NAME aufgetreten."
         FAILED+=("$CLEAN_NAME")
     fi
-done < <(find "$SCRIPT_DIR" -mindepth 2 -maxdepth 2 -type f -name "update_*.sh" -print0 | sort -z)
+done
 
 echo "========================================"
 
