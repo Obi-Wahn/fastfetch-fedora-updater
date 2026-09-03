@@ -70,6 +70,36 @@ version_needs_update() {
     return 0
 }
 
+# Durchsucht die GitHub-Releases eines Repos nach dem neuesten Release, das ein
+# Asset besitzt, dessen Name auf asset_suffix endet (z.B. "linux-x86_64.rpm"), und
+# gibt "version|download_url" aus. Releases, deren Tag nicht mit X.Y.Z beginnt
+# (z.B. reine Text-Tags), werden übersprungen; Beta-/RC-Suffixe sind erlaubt.
+# Nutzung: find_latest_github_rpm_release "<org>/<repo>" "linux-${DL_ARCH}.rpm"
+find_latest_github_rpm_release() {
+    local repo="$1"
+    local asset_suffix="$2"
+    python3 -c '
+import urllib.request, json, sys, re
+try:
+    req = urllib.request.urlopen(f"https://api.github.com/repos/{sys.argv[1]}/releases", timeout=15)
+    releases = json.loads(req.read().decode())
+
+    for release in releases:
+        version = release.get("tag_name", "").lstrip("v")
+        if not re.match(r"^\d+\.\d+\.\d+", version):
+            continue
+        for asset in release.get("assets", []):
+            if asset.get("name", "").endswith(sys.argv[2]):
+                print(f"{version}|{asset[\"browser_download_url\"]}")
+                sys.exit(0)
+
+    sys.exit(1)
+except Exception as e:
+    print(f"{type(e).__name__}: {e}", file=sys.stderr)
+    sys.exit(1)
+' "$repo" "$asset_suffix"
+}
+
 # Lädt eine Textressource (z.B. eine HTML-Seite) mit Timeout-Schutz und gibt den
 # Inhalt auf stdout aus.
 fetch_text() {
