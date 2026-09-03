@@ -90,7 +90,8 @@ try:
             continue
         for asset in release.get("assets", []):
             if asset.get("name", "").endswith(sys.argv[2]):
-                print(f"{version}|{asset[\"browser_download_url\"]}")
+                download_url = asset["browser_download_url"]
+                print(f"{version}|{download_url}")
                 sys.exit(0)
 
     sys.exit(1)
