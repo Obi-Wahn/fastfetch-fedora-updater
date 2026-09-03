@@ -48,7 +48,7 @@ if ! version_needs_update "$LOCAL_VERSION_NORMALIZED" "$LATEST_VERSION"; then
     echo "✅ Du hast bereits die aktuellste Version mit RPM-Paket installiert. Es ist kein Update nötig."
     # Auch ohne anstehendes Update immer eine lokale RPM-Kopie der aktuellen Version sicherstellen
     if [ "$LOCAL_VERSION_NORMALIZED" == "$LATEST_VERSION" ]; then
-        ensure_local_backup "$LATEST_URL" "$TARGET_RPM" "$DEST_DIR" "openlogi-*.rpm"
+        ensure_local_backup "$LATEST_URL" "$TARGET_RPM" "$DEST_DIR" "openlogi-*.rpm" || true
     fi
     exit 0
 fi
