@@ -87,7 +87,7 @@ for APP in "${APPS[@]}"; do
     sudo dnf install -y "$TARGET_RPM"
 
     echo "🧹 Entferne alte Installationsdateien für $PKG_NAME..."
-    cleanup_old_rpms "$DEST_DIR" "${PKG_NAME}-*.rpm" "$(basename "$TARGET_RPM")"
+    cleanup_old_rpms "$DEST_DIR" "${PKG_NAME}-*.rpm" "$(basename "$TARGET_RPM")" || true
 
     echo "✅ Installation von $PKG_NAME ($NEW_VERSION) erfolgreich abgeschlossen!"
 done

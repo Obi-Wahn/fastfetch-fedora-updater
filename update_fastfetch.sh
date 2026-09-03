@@ -75,7 +75,7 @@ sudo dnf install -y "$TARGET_RPM"
 
 # Aufräumen alter Versionen
 echo "🧹 Entferne alte Fastfetch-Installationsdateien..."
-cleanup_old_rpms "$DEST_DIR" "fastfetch-*.rpm" "$(basename "$TARGET_RPM")"
+cleanup_old_rpms "$DEST_DIR" "fastfetch-*.rpm" "$(basename "$TARGET_RPM")" || true
 
 echo "------------------------------------------------"
 echo "✅ Update auf Version $VERSION erfolgreich abgeschlossen!"

@@ -83,7 +83,7 @@ sudo dnf install -y "$TARGET_RPM"
 
 # 12. Aufräumen alter Versionen
 echo "🧹 Entferne alte Docker-Desktop-Installationsdateien..."
-cleanup_old_rpms "$DEST_DIR" "docker-desktop-*.rpm" "$(basename "$TARGET_RPM")"
+cleanup_old_rpms "$DEST_DIR" "docker-desktop-*.rpm" "$(basename "$TARGET_RPM")" || true
 
 echo "------------------------------------------------"
 echo "✅ Update auf Docker Desktop $VERSION erfolgreich abgeschlossen!"
