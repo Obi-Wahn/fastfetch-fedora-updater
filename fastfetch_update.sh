@@ -23,15 +23,16 @@ fi
 
 # 3. Zuverlässige JSON-Abfrage
 if ! VERSION=$(python3 -c '
-import urllib.request, json
+import urllib.request, json, sys
 try:
-    req = urllib.request.urlopen("https://api.github.com/repos/fastfetch-cli/fastfetch/releases/latest")
+    req = urllib.request.urlopen("https://api.github.com/repos/fastfetch-cli/fastfetch/releases/latest", timeout=15)
     data = json.loads(req.read().decode())
     print(data["tag_name"].lstrip("v"))
-except Exception:
-    exit(1)
+except Exception as e:
+    print(f"{type(e).__name__}: {e}", file=sys.stderr)
+    sys.exit(1)
 '); then
-    echo "❌ Fehler: Konnte die Versionsnummer von GitHub nicht abrufen (API-Limit oder Netzwerkfehler)." >&2
+    echo "❌ Fehler: Konnte die Versionsnummer von GitHub nicht abrufen (siehe Ursache oben)." >&2
     exit 1
 fi
 
@@ -55,6 +56,17 @@ if [ "$LOCAL_VERSION_NORMALIZED" == "$VERSION" ]; then
     exit 0
 fi
 
+# Kein Downgrade: nur aktualisieren, wenn die Release-Version tatsächlich neuer ist.
+# Nur bei sauberem X.Y.Z-Format prüfen, da sort -V Suffixe (z.B. "~rc1" bei Vorabversionen)
+# fälschlich als "neuer" einstufen würde und ein berechtigtes Update blockieren könnte.
+if [[ "$LOCAL_VERSION_NORMALIZED" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    NEWEST=$(printf '%s\n%s\n' "$LOCAL_VERSION_NORMALIZED" "$VERSION" | sort -V | tail -n1)
+    if [ "$NEWEST" == "$LOCAL_VERSION_NORMALIZED" ]; then
+        echo "✅ Lokale Version ($LOCAL_VERSION) ist neuer als oder gleich der letzten Release-Version ($VERSION). Kein Update nötig."
+        exit 0
+    fi
+fi
+
 echo "🔄 Neue Version verfügbar: $VERSION (lokal: ${LOCAL_VERSION:-nicht installiert})"
 
 # Zielverzeichnis dynamisch auf den Speicherort dieses Skripts setzen
@@ -65,11 +77,16 @@ TARGET_RPM="$DEST_DIR/fastfetch-${VERSION}-linux-${DL_ARCH}.rpm"
 URL="https://github.com/fastfetch-cli/fastfetch/releases/download/${VERSION}/fastfetch-linux-${DL_ARCH}.rpm"
 echo "⬇️ Lade Paket herunter in: $TARGET_RPM"
 
+# Bei Abbruch (Strg+C) während des Downloads keine unvollständige Datei zurücklassen
+trap 'rm -f "$TARGET_RPM"' INT TERM
+
 if ! curl --connect-timeout 10 --max-time 120 -fL -# --retry 3 -o "$TARGET_RPM" "$URL"; then
     echo "❌ Fehler: Download fehlgeschlagen (Timeout oder Netzwerkfehler)." >&2
     rm -f "$TARGET_RPM"
     exit 1
 fi
+
+trap - INT TERM
 
 # Absicherung: Prüfen, ob die heruntergeladene Datei ein gültiges RPM-Paket ist
 echo "🛡️ Prüfe Datei-Integrität (RPM-Struktur)..."
