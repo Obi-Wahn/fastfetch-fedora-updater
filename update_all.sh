@@ -18,7 +18,7 @@ SUDO_PID=$!
 
 # Verzeichnis dynamisch auf den Speicherort dieses Skripts setzen
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MASTER_SCRIPT=$(basename "$0")
+MASTER_SCRIPT="$SCRIPT_DIR/$(basename "$0")"
 
 # Array für fehlgeschlagene Skripte (Punkt 2)
 FAILED=()
@@ -27,7 +27,7 @@ FAILED=()
 for script in "$SCRIPT_DIR"/update_*.sh; do
 
     # Das Master-Skript überspringen
-    if [ "$(basename "$script")" == "$MASTER_SCRIPT" ]; then
+    if [ "$script" == "$MASTER_SCRIPT" ]; then
         continue
     fi
 
