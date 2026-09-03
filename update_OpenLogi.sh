@@ -39,17 +39,21 @@ fi
 echo "📦 Installierte Version: ${LOCAL_VERSION:-none}"
 echo "🌐 Neueste verfügbare Version mit RPM: ${LATEST_VERSION}"
 
+# Zielverzeichnis und Zieldatei (werden in beiden Zweigen unten gebraucht)
+DEST_DIR="$SCRIPT_DIR"
+TARGET_RPM="$DEST_DIR/openlogi-${LATEST_VERSION}-linux-${DL_ARCH}.rpm"
+
 # Versionsvergleich (inkl. Downgrade-Schutz)
 if ! version_needs_update "$LOCAL_VERSION_NORMALIZED" "$LATEST_VERSION"; then
     echo "✅ Du hast bereits die aktuellste Version mit RPM-Paket installiert. Es ist kein Update nötig."
+    # Auch ohne anstehendes Update immer eine lokale RPM-Kopie der aktuellen Version sicherstellen
+    if [ "$LOCAL_VERSION_NORMALIZED" == "$LATEST_VERSION" ]; then
+        ensure_local_backup "$LATEST_URL" "$TARGET_RPM" "$DEST_DIR" "openlogi-*.rpm"
+    fi
     exit 0
 fi
 
 echo "🔄 Ein Update auf Version $LATEST_VERSION ist verfügbar! Starte Download..."
-
-# Zielverzeichnis dynamisch auf den Speicherort dieses Skripts setzen
-DEST_DIR="$SCRIPT_DIR"
-TARGET_RPM="$DEST_DIR/openlogi-${LATEST_VERSION}-linux-${DL_ARCH}.rpm"
 
 echo "⬇️ Lade RPM-Paket herunter in: $TARGET_RPM"
 trap_download_cleanup "$TARGET_RPM"

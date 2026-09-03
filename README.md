@@ -28,7 +28,7 @@ Alle Skripte folgen demselben Muster; die wiederkehrenden Bausteine (Download, P
 * **Interrupt-sicheres Aufräumen:** Ein `trap` entfernt eine unvollständig heruntergeladene Datei, falls der Download per Strg+C abgebrochen wird.
 * **User-Space First:** Download und Prüfung laufen ohne Root-Rechte; `sudo` wird nur für den finalen `dnf install`-Schritt angefordert.
 * **Striktes Fehlermanagement:** Jedes Skript nutzt `set -euo pipefail` und bricht bei Fehlern sauber mit einer verständlichen Meldung ab.
-* **Dateiverwaltung:** RPM-Pakete werden in das jeweilige Skriptverzeichnis heruntergeladen (per `.gitignore` von Git ausgeschlossen); nach einem erfolgreichen Update werden ältere Pakete desselben Programms automatisch entfernt.
+* **Dateiverwaltung mit lokaler Sicherung:** RPM-Pakete werden in das jeweilige Skriptverzeichnis heruntergeladen (per `.gitignore` von Git ausgeschlossen). Für die aktuell installierte Version wird dort immer eine lokale Kopie vorgehalten – ist sie nicht vorhanden (z.B. nach einem frischen Klon), wird sie auch ohne anstehendes Update automatisch nachgeladen. Ältere Pakete desselben Programms werden dabei automatisch entfernt.
 
 ## `update_all.sh` – alle Updates auf einmal
 

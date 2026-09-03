@@ -85,15 +85,19 @@ fi
 echo "📦 Installierte Version: ${LOCAL_VERSION:-nicht installiert}"
 echo "🌐 Neueste Version:      ${LATEST_VERSION}"
 
+# Zielverzeichnis und Zieldatei (werden in beiden Zweigen unten gebraucht)
+DEST_DIR="$SCRIPT_DIR"
+TARGET_RPM="$DEST_DIR/moonfin-${LATEST_VERSION}-${DL_ARCH}.rpm"
+
 # Versionsvergleich (inkl. Downgrade-Schutz)
 if ! version_needs_update "$LOCAL_VERSION_NORMALIZED" "$LATEST_VERSION"; then
     echo "✅ Du hast bereits die aktuellste Version installiert. Es ist kein Update nötig."
+    # Auch ohne anstehendes Update immer eine lokale RPM-Kopie der aktuellen Version sicherstellen
+    if [ "$LOCAL_VERSION_NORMALIZED" == "$LATEST_VERSION" ]; then
+        ensure_local_backup "$LATEST_URL" "$TARGET_RPM" "$DEST_DIR" "moonfin-*.rpm"
+    fi
     exit 0
 fi
-
-# Zielverzeichnis dynamisch auf den Speicherort dieses Skripts setzen
-DEST_DIR="$SCRIPT_DIR"
-TARGET_RPM="$DEST_DIR/moonfin-${LATEST_VERSION}-${DL_ARCH}.rpm"
 
 echo "⬇️ Lade RPM-Paket herunter in: $TARGET_RPM"
 trap_download_cleanup "$TARGET_RPM"

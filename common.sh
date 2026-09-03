@@ -139,6 +139,36 @@ cleanup_old_rpms() {
     find "$dest_dir" -maxdepth 1 -name "$name_pattern" ! -name "$keep_basename" -delete
 }
 
+# Stellt sicher, dass für die aktuell installierte (= aktuelle) Version eine lokale
+# RPM-Sicherung im Zielverzeichnis liegt, auch wenn kein Update ansteht. Lädt sie bei
+# Bedarf nach, installiert dabei aber nichts (die Version läuft ja bereits). Ein
+# Fehlschlag ist nicht fatal für das aufrufende Skript, da die bestehende Installation
+# davon unberührt bleibt - nur eine Warnung wird ausgegeben.
+ensure_local_backup() {
+    local url="$1"
+    local target="$2"
+    local dest_dir="$3"
+    local name_pattern="$4"
+
+    [ -f "$target" ] && return 0
+
+    echo "📦 Keine lokale RPM-Sicherung gefunden, lade sie zusätzlich herunter: $target"
+    trap_download_cleanup "$target"
+    if ! download_rpm "$url" "$target"; then
+        clear_download_trap
+        echo "⚠️ Warnung: Backup-Download der bereits installierten Version fehlgeschlagen." >&2
+        return 1
+    fi
+    clear_download_trap
+
+    if ! verify_rpm "$target"; then
+        echo "⚠️ Warnung: Heruntergeladene Backup-Datei ist ungültig." >&2
+        return 1
+    fi
+
+    cleanup_old_rpms "$dest_dir" "$name_pattern" "$(basename "$target")"
+}
+
 # Räumt eine unvollständige Zieldatei auf, falls der Download per Strg+C
 # unterbrochen wird. clear_download_trap() nach einem erfolgreichen Download
 # aufrufen, damit spätere Schritte (z.B. die Installation) davon nicht betroffen sind.
